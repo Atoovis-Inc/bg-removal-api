@@ -28,7 +28,8 @@ ENV OUTPUT_QUALITY=95
 ENV MAX_WORKERS=4
 ENV TEMP_DIR=tmp
 ENV KEEP_TEMP_FILES=False
+ENV PORT=3000
 
-EXPOSE 8000
+EXPOSE 3000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "3000", "--workers", "4"]

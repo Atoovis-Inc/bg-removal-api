@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  bg-removal-api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017/
+      - CACHE_SIZE=1000
+      - OUTPUT_QUALITY=95
+      - MAX_WORKERS=4
+      - TEMP_DIR=/tmp/bg_removal
+      - KEEP_TEMP_FILES=False
+      - STATIC_DIR=static
+    volumes:
+      - bg-removal-static:/app/static
+      - bg-removal-temp:/tmp/bg_removal
+    depends_on:
+      - mongodb
+
+  mongodb:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    environment:
+      - MONGO_INITDB_DATABASE=bg_removal_db
+
+volumes:
+  bg-removal-static:
+  bg-removal-temp:
+  mongodb_data:

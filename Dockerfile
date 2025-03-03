@@ -26,9 +26,9 @@ ENV CLOUDINARY_NAME=dqa43dbr9
 ENV CACHE_SIZE=1000
 ENV OUTPUT_QUALITY=95
 ENV MAX_WORKERS=4
-ENV TEMP_DIR=/tmp/bg_removal
+ENV TEMP_DIR=tmp
 ENV KEEP_TEMP_FILES=False
 
 EXPOSE 8000
 
-CMD ["gunicorn", "--workers", "4", "--threads", "8", "--timeout", "0", "--bind", "0.0.0.0:8000", "app.main:app"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]

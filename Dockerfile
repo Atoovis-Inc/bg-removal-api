@@ -8,6 +8,9 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+RUN python -m venv /app/venv
+ENV PATH="/app/venv/bin:$PATH"
+
 COPY requirements.txt .
 
 RUN pip install --no-cache-dir -r requirements.txt
@@ -16,7 +19,7 @@ COPY . .
 
 RUN mkdir -p tmp
 
-ENV MONGODB_URI=mongodb://your-mongodb-atlas-uri  
+ENV MONGODB_URI=mongodb+srv://atoovis:o7nzxQPS94tfBfJ5@cluster0.jtquyul.mongodb.net/atoovis_image_server
 ENV CLOUDINARY_API_KEY=165794383214626
 ENV CLOUDINARY_API_SECRET=0NCri36qtTDEwEHloUmaJ4tANEY
 ENV CLOUDINARY_NAME=dqa43dbr9

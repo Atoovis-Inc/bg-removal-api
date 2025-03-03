@@ -1,0 +1,11 @@
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.log
+*.env
+.venv
+.__pycache__
+*.pyc
+tmp
+static

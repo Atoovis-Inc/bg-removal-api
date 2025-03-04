@@ -8,8 +8,8 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-RUN python -m venv /app/venv
-ENV PATH="/app/venv/bin:$PATH"
+# RUN python -m venv /app/venv
+# ENV PATH="/app/venv/bin:$PATH"
 
 COPY requirements.txt .
 

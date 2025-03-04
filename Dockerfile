@@ -32,4 +32,4 @@ ENV PORT=3000
 
 EXPOSE 3000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "$PORT", "--workers", "4"]
+CMD uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 4 --log-level debug

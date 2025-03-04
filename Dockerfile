@@ -1,4 +1,4 @@
-FROM python:3.13-slim
+FROM python:3.12
 
 WORKDIR /app
 
@@ -18,11 +18,11 @@ RUN mkdir -p tmp
 
 ENV CACHE_SIZE=1000
 ENV OUTPUT_QUALITY=95
-ENV MAX_WORKERS=4
+ENV MAX_WORKERS=1
 ENV TEMP_DIR=tmp
 ENV KEEP_TEMP_FILES=False
 ENV PORT=3000
 
 EXPOSE 3000
 
-CMD uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 4 --log-level debug --timeout-keep-alive 60
+CMD uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1 --log-level debug --timeout-keep-alive 60

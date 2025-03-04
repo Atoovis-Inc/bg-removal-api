@@ -92,12 +92,14 @@ async def remove_background_endpoint(
         start_time = time.time()
         image_data = await file.read()
         image_size = len(image_data) / 1024
+        print("🚀 ~ image_size:", image_size)
 
         image_hash = str(uuid.uuid4())
         temp_path = os.path.join(settings.TEMP_DIR, f"input_{image_hash}.png")
 
         # Process the image if background removal is requested
         result = image_data if not remove_bg else await remove_background(image_data, image_hash)
+        print("🚀 ~ result:", result)
 # Save the input image temporarily
         with open(temp_path, "wb") as f:
             f.write(result)

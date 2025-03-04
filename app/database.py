@@ -7,6 +7,7 @@ from .settings import settings
 class Database:
     def __init__(self):
         self.client = MongoClient(settings.MONGODB_URI)
+        print("Attempting to connect to MongoDB")
         try:
             self.client.admin.command("ping")
             print("Successfully connected to MongoDB")

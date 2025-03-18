@@ -1,14 +1,21 @@
 version: 1.0
-runtime: docker
+runtime: python3
 build:
   commands:
+    pre-build:
+      - echo "Starting build"
     build:
-      - echo "Using Dockerfile for build"
+      - echo "Building with Dockerfile"
+  artifacts:
+    discard-paths: yes
+    files:
+      - Dockerfile
+      - ./**/*
 run:
-  command: uvicorn app.main:app --host 0.0.0.0 --port 3000 --workers 1 --log-level debug --timeout-keep-alive 60
+  runtime-version: 3.12
+  command: docker build -t app . && docker run -p 3000:3000 app
   network:
     port: 3000
-    env: PORT
   env:
     - name: MONGODB_URI
       value: "mongodb+srv://atoovis:o7nzxQPS94tfBfJ5@cluster0.jtquyul.mongodb.net/atoovis_image_server"

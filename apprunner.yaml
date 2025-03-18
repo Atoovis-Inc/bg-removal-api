@@ -1,0 +1,28 @@
+version: 1.0
+runtime: docker
+build:
+  commands:
+    build:
+      - echo "Using Dockerfile for build"
+run:
+  command: uvicorn app.main:app --host 0.0.0.0 --port 3000 --workers 1 --log-level debug --timeout-keep-alive 60
+  network:
+    port: 3000
+    env: PORT
+  env:
+    - name: MONGODB_URI
+      value: "mongodb+srv://atoovis:o7nzxQPS94tfBfJ5@cluster0.jtquyul.mongodb.net/atoovis_image_server"
+    - name: CACHE_SIZE
+      value: "1000"
+    - name: OUTPUT_QUALITY
+      value: "95"
+    - name: MAX_WORKERS
+      value: "1"
+    - name: TEMP_DIR
+      value: "tmp"
+    - name: KEEP_TEMP_FILES
+      value: "False"
+    - name: STATIC_DIR
+      value: "static"
+    - name: PORT
+      value: "3000"

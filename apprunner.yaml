@@ -3,10 +3,31 @@ runtime: python3
 build:
   commands:
     pre-build:
-      - echo "Using Dockerfile for build"
+      - echo "Starting build"
+      - apt-get update
+      - apt-get install -y libgl1-mesa-glx libglib2.0-0
+      - apt-get clean
+      - rm -rf /var/lib/apt/lists/*
+    build:
+      - pip install --no-cache-dir -r requirements.txt
+      - mkdir -p tmp
 run:
-  dockerfile:
-    path: ./Dockerfile
+  runtime-version: 3.9 # Using 3.9 as it's widely supported
+  command: uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1 --log-level debug --timeout-keep-alive 60
+  network:
+    port: 3000
   env:
     - name: MONGODB_URI
       value: "mongodb+srv://atoovis:o7nzxQPS94tfBfJ5@cluster0.jtquyul.mongodb.net/atoovis_image_server"
+    - name: CACHE_SIZE
+      value: "1000"
+    - name: OUTPUT_QUALITY
+      value: "95"
+    - name: MAX_WORKERS
+      value: "1"
+    - name: TEMP_DIR
+      value: "tmp"
+    - name: KEEP_TEMP_FILES
+      value: "False"
+    - name: PORT
+      value: "3000"

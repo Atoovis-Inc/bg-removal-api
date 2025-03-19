@@ -1,5 +1,6 @@
 fastapi>=0.115.10,<0.116.0
 uvicorn>=0.33.0,<0.34.0
+urllib3<2.0.0
 rembg==2.0.61
 pillow>=10.4.0,<11.0.0
 python-multipart>=0.0.20,<0.0.21

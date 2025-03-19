@@ -12,7 +12,7 @@ build:
       - pip install --no-cache-dir -r requirements.txt
       - mkdir -p tmp
 run:
-  runtime-version: 3.9 # Using 3.9 as it's widely supported
+  runtime-version: 3.8
   command: uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1 --log-level debug --timeout-keep-alive 60
   network:
     port: 3000

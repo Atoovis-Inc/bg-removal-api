@@ -7,9 +7,9 @@ build:
       - mkdir -p tmp
 run:
   runtime-version: 3.8
-  command: uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1 --log-level debug --timeout-keep-alive 60
+  command: uvicorn app.main:app --host 0.0.0.0 --port 8080 --workers 1 --log-level debug --timeout-keep-alive 60
   network:
-    port: 3000
+    port: 8080
   env:
     - name: MONGODB_URI
       value: "mongodb+srv://atoovis:o7nzxQPS94tfBfJ5@cluster0.jtquyul.mongodb.net/atoovis_image_server"
@@ -23,5 +23,3 @@ run:
       value: "tmp"
     - name: KEEP_TEMP_FILES
       value: "False"
-    - name: PORT
-      value: "3000"

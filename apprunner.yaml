@@ -13,7 +13,7 @@ build:
       - ./**/*
 run:
   runtime-version: 3.12
-  command: docker build -t app . && docker run -p 3000:3000 app
+  command: uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1 --log-level debug --timeout-keep-alive 60
   network:
     port: 3000
   env:
@@ -29,7 +29,5 @@ run:
       value: "tmp"
     - name: KEEP_TEMP_FILES
       value: "False"
-    - name: STATIC_DIR
-      value: "static"
     - name: PORT
       value: "3000"

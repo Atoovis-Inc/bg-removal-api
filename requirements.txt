@@ -1,7 +1,7 @@
 fastapi>=0.115.10,<0.116.0
 uvicorn>=0.33.0,<0.34.0
 rembg==2.0.61
-pillow>=11.1.0,<12.0.0
+pillow>=10.4.0,<11.0.0
 python-multipart>=0.0.20,<0.0.21
 pydantic>=2.10.6,<3.0.0
 onnxruntime>=1.16.3

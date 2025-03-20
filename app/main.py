@@ -743,15 +743,15 @@ async def remove_background_endpoint(
     try:
         start_time = time.time()
         image_data = await file.read()
-        image_size = len(image_data) / 1024
-        logger.debug(f"Image size: {image_size}KB")
+        image_size = len(image_data)
+        logger.debug(f"Image size: {image_size/1024:.2f}KB")
 
         image_hash = str(uuid.uuid4())
         temp_path = os.path.join(settings.TEMP_DIR, f"input_{image_hash}.png")
 
         # Process the image if background removal is requested
         result = image_data if not remove_bg else await remove_background(image_data, image_hash)
-        logger.debug(f"Image processing result: {result}")
+        logger.debug("Image processing completed")
 
         # Save the input image temporarily
         with open(temp_path, "wb") as f:
@@ -773,10 +773,22 @@ async def remove_background_endpoint(
             fetch_format="png",
             transformation=[{"flags": "preserve_transparency"}]
         )
-        logger.debug(f"Uploaded image to Cloudinary: {upload_result}")
+        logger.debug("Uploaded image to Cloudinary")
 
-        image_url = upload_result["secure_url"]
-        public_id = upload_result["public_id"]
+        # Create thumbnail
+        thumbnail_result = cloudinary.uploader.upload(
+            temp_path,
+            public_id=f"vendor_{vendor_id}_{image_hash}_thumb",
+            overwrite=True,
+            resource_type="image",
+            format="png",
+            quality="auto:good",
+            fetch_format="png",
+            transformation=[
+                {"width": 200, "height": 200, "crop": "fill"},
+                {"flags": "preserve_transparency"}
+            ]
+        )
 
         # Clean up temporary file
         background_tasks.add_task(cleanup_temp_files, temp_path)
@@ -797,19 +809,35 @@ async def remove_background_endpoint(
                 raise HTTPException(
                     status_code=400, detail=f"Invalid folder_id: {str(e)}")
 
+        # Create image metadata following the model structure
+        now = datetime.utcnow()
+        image_doc = {
+            "_id": ObjectId(),
+            "title": file.filename,
+            "description": None,
+            "tags": [],
+            "category": None,
+            "uploadedAt": now,
+            "size": image_size,
+            "dimensions": {
+                "width": upload_result.get("width", 0),
+                "height": upload_result.get("height", 0)
+            },
+            "format": upload_result.get("format", "png"),
+            "url": upload_result["secure_url"],
+            "thumbnailUrl": thumbnail_result["secure_url"],
+            "isPublic": False,
+            "vendor_id": vendor_id,
+            "processed": remove_bg,
+            "public_id": upload_result["public_id"],
+            "folder_id": folder_id,
+            "filename": file.filename,
+            "created_at": now.isoformat()
+        }
+
         # Store metadata in MongoDB
-        metadata = ImageMetadata(
-            url=image_url,
-            filename=file.filename,
-            vendor_id=vendor_id,
-            processed=remove_bg,
-            public_id=public_id,
-            created_at=time.strftime("%Y-%m-%d %H:%M:%S"),
-            _id=str(ObjectId()),
-            folder_id=str(ObjectId(folder_id)) if folder_id else None
-        )
         try:
-            result = db.images_collection.insert_one(metadata.dict())
+            result = db.images_collection.insert_one(image_doc)
             image_id = str(result.inserted_id)
             logger.debug(
                 f"Stored metadata in MongoDB with image_id {image_id}")
@@ -822,15 +850,31 @@ async def remove_background_endpoint(
         processing_time = time.time() - start_time
         logger.info(
             f"Processed image for vendor {vendor_id}: {file.filename}, "
-            f"Size: {image_size:.2f}KB, "
+            f"Size: {image_size/1024:.2f}KB, "
             f"Time: {processing_time:.2f}s, "
             f"Background Removed: {remove_bg}, "
             f"Folder: {folder_id or 'None'}"
         )
 
         return JSONResponse(
-            content={"url": image_url, "vendor_id": vendor_id,
-                     "processed": remove_bg, "image_id": image_id, "folder_id": folder_id},
+            content={
+                "id": image_id,
+                "title": image_doc["title"],
+                "description": image_doc["description"],
+                "tags": image_doc["tags"],
+                "category": image_doc["category"],
+                "uploadedAt": image_doc["uploadedAt"].isoformat(),
+                "size": image_doc["size"],
+                "dimensions": image_doc["dimensions"],
+                "format": image_doc["format"],
+                "url": image_doc["url"],
+                "thumbnailUrl": image_doc["thumbnailUrl"],
+                "isPublic": image_doc["isPublic"],
+                "vendor_id": image_doc["vendor_id"],
+                "processed": image_doc["processed"],
+                "public_id": image_doc["public_id"],
+                "folder_id": image_doc["folder_id"]
+            },
             status_code=200,
             media_type="application/json"
         )
@@ -843,41 +887,94 @@ async def remove_background_endpoint(
         )
 
 
-@app.get("/vendor-images/{vendor_id}")
-async def get_vendor_images(vendor_id: str):
-    logger.debug(f"Received request to /vendor-images/{vendor_id}")
+@app.get("/vendor-images/{vendor_id}", response_model=PaginatedImageMetadata)
+async def get_vendor_images(
+    vendor_id: str,
+    page: int = Query(1, description="Page number", ge=1),
+    limit: int = Query(50, description="Results per page", ge=1, le=100),
+    sortBy: str = Query("uploadedAt", description="Sort by field"),
+    sortOrder: str = Query("desc", description="Sort order (asc or desc)")
+):
+    """
+    Get all images for a vendor with pagination and sorting
+    """
     try:
         init_mongodb()
-        vendor_images = list(
-            db.images_collection.find({"vendor_id": vendor_id}))
-        serialized_images = [
-            {
-                **image,
-                "_id": str(image["_id"]) if "_id" in image else None,
-                "folder_id": str(image["folder_id"]) if "folder_id" in image and image["folder_id"] else None,
+
+        # Build the query
+        query = {"vendor_id": vendor_id}
+
+        # Get total count
+        total = db.images_collection.count_documents(query)
+
+        # Set up sorting
+        sort_direction = -1 if sortOrder == "desc" else 1
+        sort_field = sortBy
+
+        # Get paginated results
+        results = list(db.images_collection.find(query)
+                       .sort(sort_field, sort_direction)
+                       .skip((page - 1) * limit)
+                       .limit(limit))
+
+        # Transform results to match frontend expected type
+        images = []
+        for img in results:
+            # Convert datetime to ISO format string
+            uploaded_at = img.get("uploadedAt")
+            if isinstance(uploaded_at, datetime):
+                uploaded_at = uploaded_at.isoformat()
+
+            # Create image metadata with proper datetime handling
+            image_metadata = {
+                "id": str(img["_id"]),
+                "title": img.get("title", "Untitled"),
+                "description": img.get("description"),
+                "tags": img.get("tags", []),
+                "category": img.get("category"),
+                "uploadedAt": uploaded_at,
+                "size": img.get("size", 0),
+                "dimensions": img.get("dimensions", {"width": 0, "height": 0}),
+                "format": img.get("format", "unknown"),
+                "url": img.get("url"),
+                "thumbnailUrl": img.get("thumbnailUrl", img.get("url")),
+                "isPublic": img.get("isPublic", False),
+                "vendor_id": img.get("vendor_id"),
+                "processed": img.get("processed", False),
+                "public_id": img.get("public_id"),
+                "folder_id": img.get("folder_id")
             }
-            for image in vendor_images
-        ]
-        logger.debug(
-            f"Found {len(serialized_images)} images for vendor {vendor_id}")
-        return JSONResponse(
-            content={"images": serialized_images},
-            status_code=200,
-            media_type="application/json"
-        )
+            images.append(image_metadata)
+
+        return {
+            "images": images,
+            "total": total
+        }
+
     except Exception as e:
-        logger.error(f"Error fetching images for vendor {vendor_id}: {str(e)}")
-        return JSONResponse(
+        logger.error(f"Error fetching vendor images: {str(e)}")
+        raise HTTPException(
             status_code=500,
-            content={"error": f"Failed to fetch images: {str(e)}"}
+            detail=f"Failed to fetch vendor images: {str(e)}"
         )
 
 
-@app.get("/vendor-images/{vendor_id}/{folder_id}")
-async def get_folder_images(vendor_id: str, folder_id: str):
-    logger.debug(f"Received request to /vendor-images/{vendor_id}/{folder_id}")
+@app.get("/vendor-images/{vendor_id}/{folder_id}", response_model=PaginatedImageMetadata)
+async def get_folder_images(
+    vendor_id: str,
+    folder_id: str,
+    page: int = Query(1, description="Page number", ge=1),
+    limit: int = Query(50, description="Results per page", ge=1, le=100),
+    sortBy: str = Query("uploadedAt", description="Sort by field"),
+    sortOrder: str = Query("desc", description="Sort order (asc or desc)")
+):
+    """
+    Get all images for a vendor in a specific folder with pagination and sorting
+    """
     try:
         init_mongodb()
+
+        # Validate folder exists and belongs to vendor
         oid = ObjectId(folder_id)
         folder = db.folders_collection.find_one(
             {"_id": oid, "vendor_id": vendor_id})
@@ -885,29 +982,76 @@ async def get_folder_images(vendor_id: str, folder_id: str):
             raise HTTPException(
                 status_code=404, detail="Folder not found or unauthorized")
 
-        folder_images = list(db.images_collection.find(
-            {"vendor_id": vendor_id, "folder_id": str(oid)}))
-        serialized_images = [
-            {
-                **image,
-                "_id": str(image["_id"]) if "_id" in image else None,
+        # Build the query
+        query = {"vendor_id": vendor_id, "folder_id": str(oid)}
+
+        # Get total count
+        total = db.images_collection.count_documents(query)
+
+        # Set up sorting
+        sort_direction = -1 if sortOrder == "desc" else 1
+        sort_field = sortBy
+
+        # Get paginated results
+        results = list(db.images_collection.find(query)
+                       .sort(sort_field, sort_direction)
+                       .skip((page - 1) * limit)
+                       .limit(limit))
+
+        # Transform results to match frontend expected type
+        images = []
+        for img in results:
+            # Handle uploadedAt field
+            uploaded_at = img.get("uploadedAt")
+            if uploaded_at is None:
+                # If uploadedAt is None, try to use created_at or current time
+                uploaded_at = img.get("created_at")
+                if uploaded_at is None:
+                    uploaded_at = datetime.utcnow()
+                elif isinstance(uploaded_at, str):
+                    try:
+                        uploaded_at = datetime.fromisoformat(
+                            uploaded_at.replace('Z', '+00:00'))
+                    except ValueError:
+                        uploaded_at = datetime.utcnow()
+            elif isinstance(uploaded_at, str):
+                try:
+                    uploaded_at = datetime.fromisoformat(
+                        uploaded_at.replace('Z', '+00:00'))
+                except ValueError:
+                    uploaded_at = datetime.utcnow()
+
+            # Create image metadata with proper datetime handling
+            image_metadata = {
+                "id": str(img["_id"]),
+                "title": img.get("title", "Untitled"),
+                "description": img.get("description"),
+                "tags": img.get("tags", []),
+                "category": img.get("category"),
+                "uploadedAt": uploaded_at,
+                "size": img.get("size", 0),
+                "dimensions": img.get("dimensions", {"width": 0, "height": 0}),
+                "format": img.get("format", "unknown"),
+                "url": img.get("url"),
+                "thumbnailUrl": img.get("thumbnailUrl", img.get("url")),
+                "isPublic": img.get("isPublic", False),
+                "vendor_id": img.get("vendor_id"),
+                "processed": img.get("processed", False),
+                "public_id": img.get("public_id"),
+                "folder_id": img.get("folder_id")
             }
-            for image in folder_images
-        ]
-        logger.debug(
-            f"Found {len(serialized_images)} images in folder {folder_id} for vendor {vendor_id}")
-        return JSONResponse(
-            content={"images": serialized_images,
-                     "folder_name": folder["folder_name"]},
-            status_code=200,
-            media_type="application/json"
-        )
+            images.append(image_metadata)
+
+        return {
+            "images": images,
+            "total": total
+        }
+
     except Exception as e:
-        logger.error(
-            f"Error fetching images for folder {folder_id} of vendor {vendor_id}: {str(e)}")
-        return JSONResponse(
+        logger.error(f"Error fetching folder images: {str(e)}")
+        raise HTTPException(
             status_code=500,
-            content={"error": f"Failed to fetch folder images: {str(e)}"}
+            detail=f"Failed to fetch folder images: {str(e)}"
         )
 
 

@@ -1232,18 +1232,34 @@ async def get_bucket_stats(
         ]
         folder_distribution = list(
             db.images_collection.aggregate(folder_pipeline))
+
+        # Process folder stats with better error handling
         folder_stats = {
-            "no_folder": sum(1 for f in folder_distribution if f["_id"] is None),
-            "by_folder": [
-                {
-                    "folder_id": str(f["_id"]) if f["_id"] else None,
-                    "count": f["count"],
-                    "name": db.folders_collection.find_one({"_id": ObjectId(f["_id"])})["folder_name"]
-                    if f["_id"] else "No Folder"
-                }
-                for f in folder_distribution
-            ]
+            "no_folder": 0,
+            "by_folder": []
         }
+
+        for f in folder_distribution:
+            folder_id = f["_id"]
+            count = f["count"]
+
+            if folder_id is None:
+                folder_stats["no_folder"] = count
+                continue
+
+            try:
+                folder = db.folders_collection.find_one(
+                    {"_id": ObjectId(folder_id)})
+                folder_name = folder["folder_name"] if folder else "Unknown Folder"
+            except Exception as e:
+                logger.warning(f"Error fetching folder {folder_id}: {str(e)}")
+                folder_name = "Unknown Folder"
+
+            folder_stats["by_folder"].append({
+                "folder_id": str(folder_id),
+                "count": count,
+                "name": folder_name
+            })
 
         # Format distribution
         format_pipeline = [
@@ -1283,7 +1299,8 @@ async def get_bucket_stats(
             "processed_images": processed_images,
             "unprocessed_images": unprocessed_images,
             "total_storage_bytes": total_storage,
-            "total_storage_mb": total_storage / (1024 * 1024),  # Convert to MB
+            # Convert to MB and round to 2 decimal places
+            "total_storage_mb": round(total_storage / (1024 * 1024), 2),
             "folder_distribution": folder_stats,
             "format_distribution": format_distribution,
             "monthly_upload_trend": monthly_trend

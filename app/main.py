@@ -920,30 +920,45 @@ async def get_vendor_images(
         # Transform results to match frontend expected type
         images = []
         for img in results:
-            # Convert datetime to ISO format string
+            # Handle uploadedAt field
             uploaded_at = img.get("uploadedAt")
-            if isinstance(uploaded_at, datetime):
-                uploaded_at = uploaded_at.isoformat()
+            if uploaded_at is None:
+                # If uploadedAt is None, try to use created_at or current time
+                uploaded_at = img.get("created_at")
+                if uploaded_at is None:
+                    uploaded_at = datetime.utcnow()
+                elif isinstance(uploaded_at, str):
+                    try:
+                        uploaded_at = datetime.fromisoformat(
+                            uploaded_at.replace('Z', '+00:00'))
+                    except ValueError:
+                        uploaded_at = datetime.utcnow()
+            elif isinstance(uploaded_at, str):
+                try:
+                    uploaded_at = datetime.fromisoformat(
+                        uploaded_at.replace('Z', '+00:00'))
+                except ValueError:
+                    uploaded_at = datetime.utcnow()
 
             # Create image metadata with proper datetime handling
-            image_metadata = {
-                "id": str(img["_id"]),
-                "title": img.get("title", "Untitled"),
-                "description": img.get("description"),
-                "tags": img.get("tags", []),
-                "category": img.get("category"),
-                "uploadedAt": uploaded_at,
-                "size": img.get("size", 0),
-                "dimensions": img.get("dimensions", {"width": 0, "height": 0}),
-                "format": img.get("format", "unknown"),
-                "url": img.get("url"),
-                "thumbnailUrl": img.get("thumbnailUrl", img.get("url")),
-                "isPublic": img.get("isPublic", False),
-                "vendor_id": img.get("vendor_id"),
-                "processed": img.get("processed", False),
-                "public_id": img.get("public_id"),
-                "folder_id": img.get("folder_id")
-            }
+            image_metadata = ImageMetadata(
+                id=str(img["_id"]),
+                title=img.get("title", "Untitled"),
+                description=img.get("description"),
+                tags=img.get("tags", []),
+                category=img.get("category"),
+                uploadedAt=uploaded_at,
+                size=img.get("size", 0),
+                dimensions=img.get("dimensions", {"width": 0, "height": 0}),
+                format=img.get("format", "unknown"),
+                url=img.get("url"),
+                thumbnailUrl=img.get("thumbnailUrl", img.get("url")),
+                isPublic=img.get("isPublic", False),
+                vendor_id=img.get("vendor_id"),
+                processed=img.get("processed", False),
+                public_id=img.get("public_id"),
+                folder_id=img.get("folder_id")
+            )
             images.append(image_metadata)
 
         return {

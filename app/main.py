@@ -744,7 +744,7 @@ async def remove_background_endpoint(
         start_time = time.time()
         image_data = await file.read()
         image_size = len(image_data)
-        logger.debug(f"Image size: {image_size/1024:.2f}KB")
+        logger.debug(f"Original image size: {image_size/1024:.2f}KB")
 
         image_hash = str(uuid.uuid4())
         temp_path = os.path.join(settings.TEMP_DIR, f"input_{image_hash}.png")
@@ -753,7 +753,7 @@ async def remove_background_endpoint(
         result = image_data if not remove_bg else await remove_background(image_data, image_hash)
         logger.debug("Image processing completed")
 
-        # Save the input image temporarily
+        # Save the processed image temporarily
         with open(temp_path, "wb") as f:
             f.write(result)
         logger.debug(f"Saved temporary image to {temp_path}")
@@ -762,31 +762,35 @@ async def remove_background_endpoint(
         init_cloudinary()
         init_mongodb()
 
-        # Upload to Cloudinary
+        # Upload optimized image with automatic modern format conversion
         upload_result = cloudinary.uploader.upload(
             temp_path,
             public_id=f"vendor_{vendor_id}_{image_hash}",
             overwrite=True,
             resource_type="image",
-            format="png",
-            quality="auto:best",
-            fetch_format="png",
-            transformation=[{"flags": "preserve_transparency"}]
+            format="auto",  # Automatically convert to WebP/AVIF
+            quality="auto:good",  # Automatic quality optimization
+            fetch_format="auto",  # Serve best format to each browser
+            transformation=[
+                {"flags": "preserve_transparency"},
+                {"quality": "auto:good"}
+            ]
         )
-        logger.debug("Uploaded image to Cloudinary")
+        logger.debug("Uploaded optimized image to Cloudinary")
 
-        # Create thumbnail
+        # Create thumbnail with same optimizations
         thumbnail_result = cloudinary.uploader.upload(
             temp_path,
             public_id=f"vendor_{vendor_id}_{image_hash}_thumb",
             overwrite=True,
             resource_type="image",
-            format="png",
+            format="auto",  # Auto WebP/AVIF conversion
             quality="auto:good",
-            fetch_format="png",
+            fetch_format="auto",
             transformation=[
                 {"width": 200, "height": 200, "crop": "fill"},
-                {"flags": "preserve_transparency"}
+                {"flags": "preserve_transparency"},
+                {"quality": "auto:good"}
             ]
         )
 
@@ -809,7 +813,7 @@ async def remove_background_endpoint(
                 raise HTTPException(
                     status_code=400, detail=f"Invalid folder_id: {str(e)}")
 
-        # Create image metadata following the model structure
+        # Create comprehensive image metadata with all optimized versions
         now = datetime.utcnow()
         image_doc = {
             "_id": ObjectId(),
@@ -823,9 +827,10 @@ async def remove_background_endpoint(
                 "width": upload_result.get("width", 0),
                 "height": upload_result.get("height", 0)
             },
-            "format": upload_result.get("format", "png"),
+            "format": upload_result.get("format", "auto"),
             "url": upload_result["secure_url"],
             "thumbnailUrl": thumbnail_result["secure_url"],
+
             "isPublic": False,
             "vendor_id": vendor_id,
             "processed": remove_bg,
@@ -848,14 +853,16 @@ async def remove_background_endpoint(
                 status_code=500, detail="Failed to store image metadata")
 
         processing_time = time.time() - start_time
+
         logger.info(
-            f"Processed image for vendor {vendor_id}: {file.filename}, "
-            f"Size: {image_size/1024:.2f}KB, "
+            f"Optimized image for vendor {vendor_id}: {file.filename}, "
+            f"Original: {image_size/1024:.2f}KB, "
             f"Time: {processing_time:.2f}s, "
             f"Background Removed: {remove_bg}, "
             f"Folder: {folder_id or 'None'}"
         )
 
+        # Return response with optimized URLs
         return JSONResponse(
             content={
                 "id": image_id,

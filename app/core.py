@@ -14,6 +14,7 @@ logger = logging.getLogger("bg_removal_api")
 # Semaphore to limit concurrent processing
 processing_semaphore = asyncio.Semaphore(settings.MAX_WORKERS)
 
+
 @lru_cache(maxsize=settings.CACHE_SIZE)
 def get_cached_image(image_hash: str) -> Optional[bytes]:
     cache_path = os.path.join(settings.TEMP_DIR, f"{image_hash}.png")
@@ -22,14 +23,17 @@ def get_cached_image(image_hash: str) -> Optional[bytes]:
             return f.read()
     return None
 
+
 def save_to_cache(image_hash: str, image_data: bytes) -> None:
     if settings.KEEP_TEMP_FILES:
         cache_path = os.path.join(settings.TEMP_DIR, f"{image_hash}.png")
         with open(cache_path, "wb") as f:
             f.write(image_data)
 
+
 async def remove_background(image_data: bytes, image_hash: str = None) -> bytes:
     # Defer imports until the function is called
+    return
     from PIL import Image
     import rembg
 

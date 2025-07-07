@@ -768,8 +768,8 @@ async def remove_background_endpoint(
             public_id=f"vendor_{vendor_id}_{image_hash}",
             overwrite=True,
             resource_type="image",
-            format="auto",  # Automatically convert to WebP/AVIF
-            quality="auto:good",  # Automatic quality optimization
+            format="webp",
+            quality="auto",
             fetch_format="auto",  # Serve best format to each browser
             transformation=[
                 {"flags": "preserve_transparency"},
@@ -777,22 +777,6 @@ async def remove_background_endpoint(
             ]
         )
         logger.debug("Uploaded optimized image to Cloudinary")
-
-        # Create thumbnail with same optimizations
-        thumbnail_result = cloudinary.uploader.upload(
-            temp_path,
-            public_id=f"vendor_{vendor_id}_{image_hash}_thumb",
-            overwrite=True,
-            resource_type="image",
-            format="auto",  # Auto WebP/AVIF conversion
-            quality="auto:good",
-            fetch_format="auto",
-            transformation=[
-                {"width": 200, "height": 200, "crop": "fill"},
-                {"flags": "preserve_transparency"},
-                {"quality": "auto:good"}
-            ]
-        )
 
         # Clean up temporary file
         background_tasks.add_task(cleanup_temp_files, temp_path)
@@ -829,7 +813,6 @@ async def remove_background_endpoint(
             },
             "format": upload_result.get("format", "auto"),
             "url": upload_result["secure_url"],
-            "thumbnailUrl": thumbnail_result["secure_url"],
 
             "isPublic": False,
             "vendor_id": vendor_id,
